@@ -52,6 +52,7 @@ func main() {
 	flagSet.String("client-id", "", "the OAuth Client ID: ie: \"123456.apps.googleusercontent.com\"")
 	flagSet.String("client-secret", "", "the OAuth Client Secret")
 	flagSet.String("authenticated-emails-file", "", "authenticate against emails via file (one per line)")
+	flagSet.String("policies-file", "", "authenticate against policies via file (json)")
 	flagSet.String("htpasswd-file", "", "additionally authenticate against a htpasswd file. Entries must be created with \"htpasswd -s\" for SHA encryption or \"htpasswd -B\" for bcrypt encryption")
 	flagSet.Bool("display-htpasswd-form", true, "display username / password login form if an htpasswd file is provided")
 	flagSet.String("custom-templates-dir", "", "path to custom html templates")
@@ -100,12 +101,13 @@ func main() {
 	cfg.LoadEnvForStruct(opts)
 	options.Resolve(opts, flagSet, cfg)
 
+	fmt.Printf("domains: %s , emails: %s, policies: %s\n", opts.EmailDomains, opts.AuthenticatedEmailsFile, opts.PoliciesFile)
 	err := opts.Validate()
 	if err != nil {
 		log.Printf("%s", err)
 		os.Exit(1)
 	}
-	validator := NewValidator(opts.EmailDomains, opts.AuthenticatedEmailsFile)
+	validator := NewValidator(opts.EmailDomains, opts.AuthenticatedEmailsFile, opts.PoliciesFile)
 	oauthproxy := NewOAuthProxy(opts, validator)
 
 	if len(opts.EmailDomains) != 0 && opts.AuthenticatedEmailsFile == "" {

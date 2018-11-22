@@ -52,6 +52,7 @@ func (p *OIDCProvider) Redeem(redirectURL, code string) (s *SessionState, err er
 		Email    string `json:"email"`
 		Verified *bool  `json:"email_verified"`
 	}
+
 	if err := idToken.Claims(&claims); err != nil {
 		return nil, fmt.Errorf("failed to parse id_token claims: %v", err)
 	}
@@ -71,6 +72,37 @@ func (p *OIDCProvider) Redeem(redirectURL, code string) (s *SessionState, err er
 	}
 
 	return
+}
+
+func (p *OIDCProvider) GetEmailAddress(s *SessionState) (string, error) {
+	ctx := context.Background()
+
+	// Parse and verify ID Token payload.
+	idToken, err := p.Verifier.Verify(ctx, s.AccessToken)
+
+	if err != nil {
+		return "", fmt.Errorf("could not verify id_token: %v", err)
+	}
+
+	// Extract custom claims.
+	var claims struct {
+		Email    string `json:"email"`
+		Verified *bool  `json:"email_verified"`
+	}
+
+	if err := idToken.Claims(&claims); err != nil {
+		return "", fmt.Errorf("failed to parse id_token claims: %v", err)
+	}
+
+	if claims.Email == "" {
+		return "", fmt.Errorf("id_token did not contain an email")
+	}
+
+	if claims.Verified != nil && !*claims.Verified {
+		return "", fmt.Errorf("email in id_token (%s) isn't verified", claims.Email)
+	}
+
+	return claims.Email, nil
 }
 
 func (p *OIDCProvider) RefreshSessionIfNeeded(s *SessionState) (bool, error) {

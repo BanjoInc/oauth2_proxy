@@ -30,12 +30,6 @@ func NewUserMap(usersFile string, done <-chan bool, onUpdate func()) *UserMap {
 	return um
 }
 
-func (um *UserMap) IsValid(email string) (result bool) {
-	m := *(*map[string]bool)(atomic.LoadPointer(&um.m))
-	_, result = m[email]
-	return
-}
-
 func (um *UserMap) LoadAuthenticatedEmailsFile() {
 	r, err := os.Open(um.usersFile)
 	if err != nil {
@@ -59,9 +53,17 @@ func (um *UserMap) LoadAuthenticatedEmailsFile() {
 	atomic.StorePointer(&um.m, unsafe.Pointer(&updated))
 }
 
-func newValidatorImpl(domains []string, usersFile string,
+// validation
+func (um *UserMap) IsValid(email string) (result bool) {
+	m := *(*map[string]bool)(atomic.LoadPointer(&um.m))
+	_, result = m[email]
+	return
+}
+
+func newValidatorImpl(domains []string, usersFile string, policiesFile string,
 	done <-chan bool, onUpdate func()) func(string) bool {
 	validUsers := NewUserMap(usersFile, done, onUpdate)
+	validPermissions := NewPolicyMap(policiesFile, done, onUpdate)
 
 	var allowAll bool
 	for i, domain := range domains {
@@ -81,7 +83,7 @@ func newValidatorImpl(domains []string, usersFile string,
 			valid = valid || strings.HasSuffix(email, domain)
 		}
 		if !valid {
-			valid = validUsers.IsValid(email)
+			valid = validUsers.IsValid(email) || validPermissions.IsValid(email)
 		}
 		if allowAll {
 			valid = true
@@ -91,6 +93,6 @@ func newValidatorImpl(domains []string, usersFile string,
 	return validator
 }
 
-func NewValidator(domains []string, usersFile string) func(string) bool {
-	return newValidatorImpl(domains, usersFile, nil, func() {})
+func NewValidator(domains []string, usersFile string, policiesFile string) func(string) bool {
+	return newValidatorImpl(domains, usersFile, policiesFile, nil, func() {})
 }
