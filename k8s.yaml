@@ -1,0 +1,121 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: oauth2-proxy-serviceaccount
+  namespace: devops
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: oauth2_proxy
+  namespace: devops
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: oath2_proxy
+    spec:
+      serviceAccountName: oauth2-proxy-serviceaccount
+      containers:
+      - name: oauth2-proxy
+        image: 646497312978.dkr.ecr.us-east-1.amazonaws.com/devops-utility:oauth2_proxy_v0.1.1
+        imagePullPolicy: Always
+        env:
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: oauth-secret
+              key: client_secret
+        - name: DEX_URL
+          valueFrom:
+            secretKeyRef:
+              name: oauth-secret
+              key: dex_url
+        - name: LISTEN_IP
+          value: 0.0.0.0:5000
+        ports:
+        - containerPort: 5000
+          protocol: TCP
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: oauth-permission
+            items:
+              - key: oauth-permission-file
+                path: policies
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    k8s-app: oauth2-proxy
+  name: oauth2proxy
+  namespace: devops
+spec:
+  ports:
+  - name: http
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: oauth2-proxy
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  clusterName: ""
+  name: oauth2proxy
+  namespace: devops
+spec:
+  hosts:
+  - oauth2proxy
+  http:
+  - match:
+    - uri:
+        prefix: /oauth2/
+    route:
+    - destination:
+        host: oauth2proxy
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oauth-secret
+  namespace: devops
+type: Opaque
+data:
+  client_secret: Vkc5d2NtdHFiM0loY0ZKWGQxa3ljUT09
+  dex_url: aHR0cHM6Ly9pbnMtYXVlMS1kZXgtMDEtMDEuYm1hc2tlZC5pbmZvL2RleA==
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth-permission
+  namespace: devops
+data:
+  oauth-permission-file: |-
+    {
+      "policies": [
+        {
+          "hosts": [
+            "ins-cjis-k8s-dashboard.bmasked.info"
+          ],
+          "operations": [
+            "GET",
+            "POST",
+            "PATCH",
+            "DELETE"
+          ],
+          "users": [
+            "sduong@teambanjo.com",
+            "jerome@teambanjo.com",
+            "Wei@teambanjo.com"
+          ]
+        }
+      ]
+    }
